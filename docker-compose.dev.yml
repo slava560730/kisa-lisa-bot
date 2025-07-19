@@ -1,0 +1,24 @@
+version: "3.9"
+services:
+  db:
+    image: mongo:4.2
+    restart: always
+    container_name: kida-lisa_mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - ${DB_PORT}:27017
+    volumes:
+      - kida-lisa_data:/data/db
+  bot:
+    build:
+      context: .
+    container_name: kida-lisa_bot
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - db
+volumes:
+  kida-lisa_data:

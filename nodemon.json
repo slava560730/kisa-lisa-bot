@@ -1,6 +1,8 @@
 {
-  "watch": ["src"],
-  "ext": "ts",
+  "watch": [
+    "src"
+  ],
   "ignore": ["dist"],
-  "exec": "ts-node src/bot1.ts"
+  "ext": "ts, json",
+  "exec": "npm run ts ./src/main.ts | pino-pretty --colorize --translateTime SYS:standard"
 }

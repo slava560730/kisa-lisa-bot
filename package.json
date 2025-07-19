@@ -1,23 +1,49 @@
 {
-  "name": "test",
+  "name": "kisa-lisa-bot",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "main.js",
+  "type": "module",
+  "engines": {
+    "node": "^20.0.0",
+    "npm": ">=10"
+  },
   "scripts": {
+    "start": "npm run build && node ./dist/main.js",
     "dev": "nodemon",
-    "build": "tsc",
-    "start": "node dist/bot.js"
+    "build": "npm run clean && npm run compile",
+    "compile": "tsc -p tsconfig.json",
+    "ts": "tsc --noEmit && node --no-warnings=ExperimentalWarning --loader ts-node/esm",
+    "clean": "rimraf dist"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "class-validator": "^0.14.1",
+    "convict": "^6.2.4",
+    "convict-format-with-validator": "^6.2.0",
     "dotenv": "^17.2.0",
+    "inversify": "^6.0.2",
+    "mongoose": "^8.3.4",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "reflect-metadata": "^0.2.2",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
+    "@telegraf/types": "8.3.1",
+    "@typegoose/typegoose": "12.4.0",
+    "@types/convict": "6.1.6",
+    "@types/convict-format-with-validator": "6.0.5",
     "@types/node": "^24.0.13",
+    "@typescript-eslint/eslint-plugin": "8.37.0",
+    "@typescript-eslint/parser": "8.37.0",
+    "eslint": "9.31.0",
+    "eslint-config-htmlacademy": "10.0.1",
     "nodemon": "^3.1.10",
+    "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "4.2.0",
     "typescript": "^5.8.3"
   }
 }
