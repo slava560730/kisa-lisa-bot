@@ -13,7 +13,7 @@ async function bootstrap() {
         createBotApplicationContainer(),
         createUserContainer(),
     );
-    console.log("jkgjhgf");
+
     const application = appContainer.get<BotApplication>(Component.BotApplication);
 
     await application.init();
