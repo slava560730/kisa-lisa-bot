@@ -3,7 +3,8 @@ import {Config, RestSchema} from '../shared/libs/config/index.js';
 import {inject, injectable} from 'inversify';
 import {Context, Markup, Telegraf} from 'telegraf';
 import {
-  deletePreviousMessages, getMongoURI,
+  deletePreviousMessages,
+  // getMongoURI,
   getSubscriptionKeyboard,
   saveMessageId, startChatActionAnimation
 } from '../shared/helpers/index.js';
@@ -13,8 +14,8 @@ import {guides} from '../shared/const/guides.js';
 import * as fs from 'node:fs';
 import {knownCommands} from '../shared/const/commands.js';
 import {Component} from '../shared/types/index.js';
-import {DatabaseClient} from '../shared/libs/database-client/index.js';
-import {UserService} from '../shared/modules/user/index.js';
+// import {DatabaseClient} from '../shared/libs/database-client/index.js';
+// import {UserService} from '../shared/modules/user/index.js';
 
 @injectable()
 export class BotApplication {
@@ -23,50 +24,49 @@ export class BotApplication {
   constructor(
     @inject(Component.Logger) private readonly logger: Logger,
     @inject(Component.Config) private readonly config: Config<RestSchema>,
-    @inject(Component.DatabaseClient) private readonly databaseClient: DatabaseClient,
-    @inject(Component.UserService) private readonly userService: UserService,
+    // @inject(Component.DatabaseClient) private readonly databaseClient: DatabaseClient,
+    // @inject(Component.UserService) private readonly userService: UserService,
   ) {
   }
 
   public async init() {
-    this.logger.info('Код обновлен');
     this.logger.info('Application initialization');
 
     this.logger.info('Init database');
-    await this.initDb();
+    // await this.initDb();
     this.logger.info('Init database completed');
 
     this.logger.info('Try to init bot…');
     await this._initBot();
   }
 
-  private async initDb() {
-    const mongoUri = getMongoURI(
-      this.config.get('DB_USER'),
-      this.config.get('DB_PASSWORD'),
-      this.config.get('DB_HOST'),
-      this.config.get('DB_PORT'),
-      this.config.get('DB_NAME'),
-    );
-
-    return this.databaseClient.connect(mongoUri);
-  }
+  // private async initDb() {
+  //   const mongoUri = getMongoURI(
+  //     this.config.get('DB_USER'),
+  //     this.config.get('DB_PASSWORD'),
+  //     this.config.get('DB_HOST'),
+  //     this.config.get('DB_PORT'),
+  //     this.config.get('DB_NAME'),
+  //   );
+  //
+  //   return this.databaseClient.connect(mongoUri);
+  // }
 
   private async _initBot() {
     const BOT_TOKEN = this.config.get('BOT_TOKEN');
     this.bot = new Telegraf(BOT_TOKEN || "");
     this.logger.info('Bot inited');
 
-    this.bot.use(async (ctx: Context, next) => {
-      if (ctx.from && ctx.from.id) {
-        await this.userService.findOrCreate({
-          userId: ctx.from.id,
-          username: ctx.from.username || '',
-          firstName: ctx.from.first_name,
-          lastName: ctx.from.last_name || '',});
-      }
-      return next();
-    });
+    // this.bot.use(async (ctx: Context, next) => {
+    //   if (ctx.from && ctx.from.id) {
+    //     await this.userService.findOrCreate({
+    //       userId: ctx.from.id,
+    //       username: ctx.from.username || '',
+    //       firstName: ctx.from.first_name,
+    //       lastName: ctx.from.last_name || '',});
+    //   }
+    //   return next();
+    // });
 
     // Start command handler
     this.bot.start(async (ctx) => {
