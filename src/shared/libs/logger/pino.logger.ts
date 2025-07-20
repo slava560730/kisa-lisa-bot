@@ -37,7 +37,7 @@ export class PinoLogger implements Logger {
     this.logger.debug(message, ...args);
   }
 
-  public error(message: string, error: Error, ...args: unknown[]): void {
+  public error(message: string, error: unknown, ...args: unknown[]): void {
     this.logger.error(error, message, ...args);
   }
 

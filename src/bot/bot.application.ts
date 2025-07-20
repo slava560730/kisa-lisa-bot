@@ -3,11 +3,13 @@ import {Config, RestSchema} from '../shared/libs/config/index.js';
 import {inject, injectable} from 'inversify';
 import {Context, Markup, Telegraf} from 'telegraf';
 import {
-  deletePreviousMessages, getMongoURI,
-  getSubscriptionKeyboard,
-  saveMessageId, startChatActionAnimation
+    deletePreviousMessages,
+    getMongoURI,
+    getSubscriptionKeyboard,
+    saveMessageId,
+    startChatActionAnimation
 } from '../shared/helpers/index.js';
-import {BENGAL_STICKER, BENGAL_STICKER_BEER, CHANNEL_ID} from '../shared/const/common.js';
+import {ADMINS, BENGAL_STICKER, BENGAL_STICKER_BEER, CHANNEL_ID} from '../shared/const/common.js';
 import checkSubscription from '../handlers/checkSubscription.js';
 import {guides} from '../shared/const/guides.js';
 import * as fs from 'node:fs';
@@ -18,180 +20,192 @@ import {UserService} from '../shared/modules/user/index.js';
 
 @injectable()
 export class BotApplication {
-  private bot: Telegraf;
+    private bot: Telegraf;
 
-  constructor(
-    @inject(Component.Logger) private readonly logger: Logger,
-    @inject(Component.Config) private readonly config: Config<RestSchema>,
-    @inject(Component.DatabaseClient) private readonly databaseClient: DatabaseClient,
-    @inject(Component.UserService) private readonly userService: UserService,
-  ) {
-  }
+    constructor(@inject(Component.Logger) private readonly logger: Logger,
+                @inject(Component.Config) private readonly config: Config<RestSchema>,
+                @inject(Component.DatabaseClient) private readonly databaseClient: DatabaseClient,
+                @inject(Component.UserService) private readonly userService: UserService,) {
+    }
 
-  public async init() {
-    this.logger.info('Код обновлен');
-    this.logger.info('Application initialization');
+    public async init() {
+        this.logger.info('Application initialization');
 
-    this.logger.info('Init database');
-    await this.initDb();
-    this.logger.info('Init database completed');
+        this.logger.info('Init database');
+        await this.initDb();
+        this.logger.info('Init database completed');
 
-    this.logger.info('Try to init bot…');
-    await this._initBot();
-  }
+        this.logger.info('Init bot');
+        await this._initBot();
+        this.logger.info('Init bot completed');
 
-  private async initDb() {
-    const mongoUri = getMongoURI(
-      this.config.get('DB_USER'),
-      this.config.get('DB_PASSWORD'),
-      this.config.get('DB_HOST'),
-      this.config.get('DB_PORT'),
-      this.config.get('DB_NAME'),
-    );
+        this.logger.info('Init middlewares');
+        await this._initMiddlewares();
+        this.logger.info('Init middlewares completed');
 
-    return this.databaseClient.connect(mongoUri);
-  }
+        this.logger.info('Init Commands');
+        await this._initCommands();
+        this.logger.info('Init commands completed');
+    }
 
-  private async _initBot() {
-    const BOT_TOKEN = this.config.get('BOT_TOKEN');
-    this.bot = new Telegraf(BOT_TOKEN || "");
-    this.logger.info('Bot inited');
+    private async initDb() {
+        const mongoUri = getMongoURI(this.config.get('DB_USER'), this.config.get('DB_PASSWORD'), this.config.get('DB_HOST'), this.config.get('DB_PORT'), this.config.get('DB_NAME'),);
 
-    this.bot.use(async (ctx: Context, next) => {
-      if (ctx.from && ctx.from.id) {
-        await this.userService.findOrCreate({
-          userId: ctx.from.id,
-          username: ctx.from.username || '',
-          firstName: ctx.from.first_name,
-          lastName: ctx.from.last_name || '',});
-      }
-      return next();
-    });
+        return this.databaseClient.connect(mongoUri);
+    }
 
-    // Start command handler
-    this.bot.start(async (ctx) => {
-      await deletePreviousMessages(ctx);
+    private async _initBot() {
+        const BOT_TOKEN = this.config.get('BOT_TOKEN');
+        this.bot = new Telegraf(BOT_TOKEN || '');
 
-      const msgSticker = await ctx.replyWithSticker(BENGAL_STICKER_BEER);
+        // Error handling
+        this.bot.catch((err, ctx) => {
+            this.logger.error(`Error for ${ctx.updateType}:`, err);
+            ctx.reply('Ой, что-то пошло не так! 😿 Попробуй снова позже! 🐾');
+        });
 
-      const welcomeMessage = `Приветики-пистолетики, ${ctx.from?.first_name || 'друг'}! 🐾 Это мой вездеССУЩИЙ бот😺
+        // Start the this.bot
+        this.bot.launch().then(() => {
+            console.log('Bot is running...');
+        });
+
+        // Enable graceful stop
+        process.once('SIGINT', () => this.bot.stop('SIGINT'));
+        process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
+    }
+
+    private async _initMiddlewares() {
+        this.bot.use(async (ctx: Context, next) => {
+            if (ctx.from && ctx.from.id) {
+                await this.userService.findOrCreate({
+                    userId: ctx.from.id,
+                    username: ctx.from.username || '',
+                    firstName: ctx.from.first_name,
+                    lastName: ctx.from.last_name || '',
+                });
+            }
+            return next();
+        });
+
+        // Обработка неизвестных команд
+        this.bot.hears(/^\/.+/, async (ctx, next) => {
+            const cmd = ctx.message.text.split(' ')[0];
+            if (!knownCommands.includes(cmd)) {
+                await ctx.reply('Мяу! Такой команды нет 🐾 Попробуй /help');
+                return;
+            }
+
+            return next();
+        });
+    }
+
+    private async _initCommands() {
+        // Start command handler
+        this.bot.start(async (ctx) => {
+            await deletePreviousMessages(ctx);
+
+            const msgSticker = await ctx.replyWithSticker(BENGAL_STICKER_BEER);
+
+            const welcomeMessage = `Приветики-пистолетики, ${ctx.from?.first_name || 'друг'}! 🐾 Это мой вездеССУЩИЙ бот😺
 У меня есть подарок для тебя - который спасет ваш диван и нервы от запаха! Хочешь? Нажми ниже на кнопку, Мрррмяяя!`;
 
 
-      const message = await ctx.reply(welcomeMessage, {
-        reply_markup: Markup.inlineKeyboard([
-          Markup.button.callback('Получить гайд 😺', 'get_guide')
-        ]).reply_markup
-      });
+            const message = await ctx.reply(welcomeMessage, {
+                reply_markup: Markup.inlineKeyboard([Markup.button.callback('Получить гайд 😺', 'get_guide')]).reply_markup
+            });
 
-      saveMessageId(ctx, message.message_id);
-      saveMessageId(ctx, msgSticker.message_id);
-    });
-
-// Handle "Get Guide" button
-    this.bot.action('get_guide', async (ctx) => {
-      await ctx.answerCbQuery();
-      await deletePreviousMessages(ctx);
-
-      const message = await ctx.reply(
-          `Мяу! 😺 Чтобы забрать гайд, подпишись на мой канал ${CHANNEL_ID}!
-    После подписки нажми "Проверить подписку".`,
-          {
-            reply_markup: getSubscriptionKeyboard()
-          }
-      );
-
-      saveMessageId(ctx, message.message_id);
-    });
-
-    async function handleCheckSubscription(ctx: Context) {
-      await deletePreviousMessages(ctx);
-      let isSubscribed: boolean | null = null;
-      let errorText = '';
-
-      try {
-        isSubscribed = await checkSubscription(ctx);
-      } catch (e) {
-        isSubscribed = null;
-        errorText = 'Не удалось проверить подписку из-за технических проблем Telegram 😿. Попробуй позже!';
-      }
-
-      if (isSubscribed) {
-        const buttons = guides.map(g =>
-            g.isFree
-                ? [Markup.button.callback(g.title, `get_${g.id}`)]
-                : [Markup.button.url(`${g.title}`, g.paymentLink || "http://")]
-        );
-
-        const guidesMessage = await ctx.reply(
-            'Выбери нужный гайд:',
-            { reply_markup: Markup.inlineKeyboard(buttons).reply_markup }
-        );
-        saveMessageId(ctx, guidesMessage.message_id);
-        return;
-      } else if (isSubscribed === false) {
-        const msgSticker = await ctx.replyWithSticker(BENGAL_STICKER);
-        const message = await ctx.reply(
-            `Мяу-мяу! 😺 Похоже, ты ещё не с нами в канале  ${CHANNEL_ID}.
-            Подпишись и нажми "Проверить подписку" снова! Обещаем не спамить, а писать только по делу😏`,
-            {
-              reply_markup: getSubscriptionKeyboard()
-            }
-        );
-        saveMessageId(ctx, message.message_id);
-        saveMessageId(ctx, msgSticker.message_id);
-      } else if (isSubscribed === null) {
-        // Неизвестная ошибка (Telegram API, проблемы с каналом и т.д.)
-        await ctx.reply(
-            errorText || 'Не удалось проверить подписку. Попробуй позже!',
-            { reply_markup: getSubscriptionKeyboard() }
-        );
-      }
-    }
-
-// Handle subscription check
-    this.bot.action('check_subscription', async (ctx) => {
-      await ctx.answerCbQuery();
-      await handleCheckSubscription(ctx)
-    })
-
-// Обработка бесплатных гайдов
-    guides.filter(g => g.isFree).forEach(g => {
-      this.bot.action(`get_${g.id}`, async (ctx) => {
-        await deletePreviousMessages(ctx);
-        await ctx.answerCbQuery();
-        if (fs.existsSync(g.path)) {
-          let stopAnimation = null;
-          let loadingMessage;
-          try {
-            stopAnimation = startChatActionAnimation(ctx, 'upload_document');
-            loadingMessage = await ctx.reply('Загружаю выбранный гайд...⏳');
-            const message = await ctx.replyWithDocument(
-                { source: g.path, filename: g.filename },
-                { caption: g.description }
-            );
             saveMessageId(ctx, message.message_id);
-          } catch (err) {
-            console.error('Ошибка при отправке файла:', err);
-            await ctx.reply('Ой, не удалось отправить гайд 😿 Попробуй позже!');
-          } finally {
-            if (loadingMessage) await ctx.deleteMessage(loadingMessage.message_id).catch(() => {});
-            if (stopAnimation) stopAnimation();
-          }
-        } else {
-          const message = await ctx.reply('Дико извиняемся, кажется какая-то собака украла гайд😡  Попробуй позже!\'');
-          saveMessageId(ctx, message.message_id);
+            saveMessageId(ctx, msgSticker.message_id);
+        });
+
+        // Handle "Get Guide" button
+        this.bot.action('get_guide', async (ctx) => {
+            await ctx.answerCbQuery();
+            await deletePreviousMessages(ctx);
+
+            const message = await ctx.reply(`Мяу! 😺 Чтобы забрать гайд, подпишись на мой канал ${CHANNEL_ID}!
+    После подписки нажми "Проверить подписку".`, {
+                reply_markup: getSubscriptionKeyboard()
+            });
+
+            saveMessageId(ctx, message.message_id);
+        });
+
+        async function handleCheckSubscription(ctx: Context) {
+            await deletePreviousMessages(ctx);
+            let isSubscribed: boolean | null = null;
+            let errorText = '';
+
+            try {
+                isSubscribed = await checkSubscription(ctx);
+            } catch (e) {
+                isSubscribed = null;
+                errorText = 'Не удалось проверить подписку из-за технических проблем Telegram 😿. Попробуй позже!';
+            }
+
+            if (isSubscribed) {
+                const buttons = guides.map(g => g.isFree ? [Markup.button.callback(g.title, `get_${g.id}`)] : [Markup.button.url(`${g.title}`, g.paymentLink || 'http://')]);
+
+                const guidesMessage = await ctx.reply('Выбери нужный гайд:', {reply_markup: Markup.inlineKeyboard(buttons).reply_markup});
+                saveMessageId(ctx, guidesMessage.message_id);
+                return;
+            } else if (isSubscribed === false) {
+                const msgSticker = await ctx.replyWithSticker(BENGAL_STICKER);
+                const message = await ctx.reply(`Мяу-мяу! 😺 Похоже, ты ещё не с нами в канале  ${CHANNEL_ID}.
+            Подпишись и нажми "Проверить подписку" снова! Обещаем не спамить, а писать только по делу😏`, {
+                    reply_markup: getSubscriptionKeyboard()
+                });
+                saveMessageId(ctx, message.message_id);
+                saveMessageId(ctx, msgSticker.message_id);
+            } else if (isSubscribed === null) {
+                // Неизвестная ошибка (Telegram API, проблемы с каналом и т.д.)
+                await ctx.reply(errorText || 'Не удалось проверить подписку. Попробуй позже!', {reply_markup: getSubscriptionKeyboard()});
+            }
         }
-      });
-    });
 
-    this.bot.command('guides', async (ctx) => {
-      await handleCheckSubscription(ctx)
-    });
+        // Handle subscription check
+        this.bot.action('check_subscription', async (ctx) => {
+            await ctx.answerCbQuery();
+            await handleCheckSubscription(ctx);
+        });
 
-    this.bot.command('help', async (ctx) => {
-      const message = await ctx.reply(
-          `Мяу! Я — бот Лиса Киса 🐾
+        // Обработка бесплатных гайдов
+        guides.filter(g => g.isFree).forEach(g => {
+            this.bot.action(`get_${g.id}`, async (ctx) => {
+                await deletePreviousMessages(ctx);
+                await ctx.answerCbQuery();
+                if (fs.existsSync(g.path)) {
+                    let stopAnimation = null;
+                    let loadingMessage;
+                    try {
+                        stopAnimation = startChatActionAnimation(ctx, 'upload_document');
+                        loadingMessage = await ctx.reply('Загружаю выбранный гайд...⏳');
+                        const message = await ctx.replyWithDocument({
+                            source: g.path,
+                            filename: g.filename
+                        }, {caption: g.description});
+                        saveMessageId(ctx, message.message_id);
+                    } catch (err) {
+                        console.error('Ошибка при отправке файла:', err);
+                        await ctx.reply('Ой, не удалось отправить гайд 😿 Попробуй позже!');
+                    } finally {
+                        if (loadingMessage) await ctx.deleteMessage(loadingMessage.message_id).catch(() => {
+                        });
+                        if (stopAnimation) stopAnimation();
+                    }
+                } else {
+                    const message = await ctx.reply('Дико извиняемся, кажется какая-то собака украла гайд😡  Попробуй позже!\'');
+                    saveMessageId(ctx, message.message_id);
+                }
+            });
+        });
+
+        this.bot.command('guides', async (ctx) => {
+            await handleCheckSubscription(ctx);
+        });
+
+        this.bot.command('help', async (ctx) => {
+            const message = await ctx.reply(`Мяу! Я — бот Лиса Киса 🐾
 
 Я помогу тебе избавиться от неприятных запахов и сохранить твой диван в порядке! Чтобы получить бесплатный гайд:
 
@@ -201,36 +215,48 @@ export class BotApplication {
 
 Если что-то не работает или есть вопросы, просто напиши в чат поддержки: @goodcovich
 
-Мурр, хорошего дня!`
-      );
+Мурр, хорошего дня!`);
 
-      saveMessageId(ctx, message.message_id);
-    });
+            saveMessageId(ctx, message.message_id);
+        });
 
-// Обработка неизвестных команд
-    this.bot.hears(/^\/.+/, async (ctx, next) => {
-      const cmd = ctx.message.text.split(' ')[0];
-      if (!knownCommands.includes(cmd)) {
-        await ctx.reply('Мяу! Такой команды нет 🐾 Попробуй /help');
-        return;
-      }
+        // Массив юзернеймов, кому разрешена рассылка
 
-      return next();
-    });
 
-// Error handling
-    this.bot.catch((err, ctx) => {
-      console.error(`Error for ${ctx.updateType}:`, err);
-      ctx.reply('Ой, что-то пошло не так! 😿 Попробуй снова позже! 🐾');
-    });
+        // Пример модели User (mongoose)
+        // const User = mongoose.model('User', userSchema);
 
-// Start the this.bot
-    this.bot.launch().then(() => {
-      console.log('Bot is running...');
-    })
+        // @ts-ignore
+        this.bot.command('mailing', async (ctx) => {
+            const username = ctx.from?.username;
+            if (!username || !ADMINS.includes(username)) {
+                return ctx.reply('⛔ Доступ запрещён.');
+            }
 
-// Enable graceful stop
-    process.once('SIGINT', () => this.bot.stop('SIGINT'));
-    process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
-  }
+            // Достаем текст рассылки после команды
+            const msgText = ctx.message.text.split(' ').slice(1).join(' ');
+            this.logger.info(`Старт рассылки сообщения ${msgText}`);
+
+            if (!msgText) {
+                return ctx.reply('Укажи текст для рассылки: /mailing Ваш текст');
+            }
+
+            // Берём всех пользователей из Mongo
+            const users = await this.userService.findAll();
+            console.log('users',users);
+            let count = 0;
+            for (const user of users) {
+                try {
+                    await ctx.telegram.sendMessage(user.userId, msgText);
+                    count++;
+                    await new Promise(r => setTimeout(r, 60));
+                } catch (err) {
+                    this.logger.error('Ошибка при рассылке', err);
+                }
+            }
+
+            await ctx.reply(`Рассылка завершена! Отправлено: ${count} пользователям.`);
+            this.logger.info(`Рассылка завершена! Отправлено: ${count} пользователям.`);
+        });
+    }
 }

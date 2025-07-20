@@ -1,1 +1,1 @@
-export const knownCommands = ['/start', '/help'];
+export const knownCommands = ['/start', '/help', '/mailing', '/guides'];

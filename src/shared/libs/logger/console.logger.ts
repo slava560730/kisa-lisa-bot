@@ -6,7 +6,7 @@ export class ConsoleLogger implements Logger {
     console.debug(message, ...args);
   }
 
-  public error(message: string, error: Error, ...args: unknown[]): void {
+  public error(message: string, error: unknown, ...args: unknown[]): void {
     console.error(message, ...args);
     console.error(`Error message: ${getErrorMessage(error)}`);
   }
